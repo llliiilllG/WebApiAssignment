@@ -1,28 +1,135 @@
-import React from "react";
-import { FaBicycle, FaShoppingCart, FaUsers, FaDollarSign, FaChartLine, FaTrophy, FaClock, FaStar } from 'react-icons/fa';
+import React, { useState, useEffect } from "react";
+import { FaBicycle, FaShoppingCart, FaUsers, FaDollarSign, FaChartLine, FaTrophy, FaClock, FaStar, FaSpinner } from 'react-icons/fa';
+import axios from 'axios';
 
 const Dashboard = () => {
-  // Mock Data (Replace with API Fetch)
-  const stats = [
-    { id: 1, title: "Total Users", value: "1,240", icon: <FaUsers size={24} />, color: "bg-gradient-to-r from-green-500 to-green-600", change: "+12%", changeType: "positive" },
-    { id: 2, title: "Total Bikes", value: "58", icon: <FaBicycle size={24} />, color: "bg-gradient-to-r from-green-600 to-green-700", change: "+5%", changeType: "positive" },
-    { id: 3, title: "Total Orders", value: "3,450", icon: <FaShoppingCart size={24} />, color: "bg-gradient-to-r from-green-400 to-green-500", change: "+18%", changeType: "positive" },
-    { id: 4, title: "Total Revenue", value: "$12,480", icon: <FaDollarSign size={24} />, color: "bg-gradient-to-r from-green-700 to-green-800", change: "+23%", changeType: "positive" },
-  ];
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState([]);
+  const [recentOrders, setRecentOrders] = useState([]);
+  const [topBikes, setTopBikes] = useState([]);
+  const [error, setError] = useState(null);
 
-  const recentOrders = [
-    { id: 1, customer: "John Doe", bike: "Honda CBR", date: "2024-08-15", status: "Confirmed", amount: "$15,000" },
-    { id: 2, customer: "Jane Smith", bike: "Yamaha R1", date: "2024-08-14", status: "Pending", amount: "$20,000" },
-    { id: 3, customer: "Mike Johnson", bike: "Kawasaki Ninja", date: "2024-08-13", status: "Canceled", amount: "$18,000" },
-    { id: 4, customer: "Emily Davis", bike: "Suzuki GSX-R", date: "2024-08-12", status: "Confirmed", amount: "$22,000" },
-  ];
+  // Fetch real-time data
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
 
-  const topBikes = [
-    { name: "Honda CBR", sales: 45, revenue: "$675,000" },
-    { name: "Yamaha R1", sales: 38, revenue: "$760,000" },
-    { name: "Kawasaki Ninja", sales: 32, revenue: "$576,000" },
-    { name: "Suzuki GSX-R", sales: 28, revenue: "$616,000" },
-  ];
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch all data in parallel
+      const [customersRes, packagesRes, bookingsRes, reviewsRes] = await Promise.all([
+        axios.get('http://localhost:3000/api/v1/auth/getAllCustomers'),
+        axios.get('http://localhost:3000/api/v1/package'),
+        axios.get('http://localhost:3000/api/v1/bookings'),
+        axios.get('http://localhost:3000/api/v1/reviews')
+      ]);
+
+      const customers = customersRes.data.data || customersRes.data; // Handle different response formats
+      const packages = packagesRes.data;
+      const bookings = bookingsRes.data;
+      const reviews = reviewsRes.data;
+
+      // Calculate stats
+      const totalUsers = customers.length;
+      const totalBikes = packages.length;
+      const totalOrders = bookings.length;
+      
+      // Calculate total revenue from bookings
+      const totalRevenue = bookings.reduce((sum, booking) => {
+        return sum + (booking.amount || 0);
+      }, 0);
+
+      // Calculate percentage changes (mock for now, could be calculated from historical data)
+      const userChange = totalUsers > 0 ? "+12%" : "0%";
+      const bikeChange = totalBikes > 0 ? "+5%" : "0%";
+      const orderChange = totalOrders > 0 ? "+18%" : "0%";
+      const revenueChange = totalRevenue > 0 ? "+23%" : "0%";
+
+      // Set stats
+      setStats([
+        { 
+          id: 1, 
+          title: "Total Users", 
+          value: totalUsers.toLocaleString(), 
+          icon: <FaUsers size={24} />, 
+          color: "bg-gradient-to-r from-green-500 to-green-600", 
+          change: userChange, 
+          changeType: "positive" 
+        },
+        { 
+          id: 2, 
+          title: "Total Bikes", 
+          value: totalBikes.toString(), 
+          icon: <FaBicycle size={24} />, 
+          color: "bg-gradient-to-r from-green-600 to-green-700", 
+          change: bikeChange, 
+          changeType: "positive" 
+        },
+        { 
+          id: 3, 
+          title: "Total Orders", 
+          value: totalOrders.toLocaleString(), 
+          icon: <FaShoppingCart size={24} />, 
+          color: "bg-gradient-to-r from-green-400 to-green-500", 
+          change: orderChange, 
+          changeType: "positive" 
+        },
+        { 
+          id: 4, 
+          title: "Total Revenue", 
+          value: `$${totalRevenue.toLocaleString()}`, 
+          icon: <FaDollarSign size={24} />, 
+          color: "bg-gradient-to-r from-green-700 to-green-800", 
+          change: revenueChange, 
+          changeType: "positive" 
+        },
+      ]);
+
+      // Process recent orders
+      const processedOrders = bookings.slice(0, 4).map((booking, index) => ({
+        id: booking._id || index + 1,
+        customer: booking.customerName || booking.customerId?.name || `Customer ${index + 1}`,
+        bike: booking.packageId?.title || booking.packageName || "Unknown Bike",
+        date: new Date(booking.createdAt || booking.date || Date.now()).toLocaleDateString(),
+        status: booking.status || "Pending",
+        amount: `$${(booking.amount || 0).toLocaleString()}`
+      }));
+
+      setRecentOrders(processedOrders);
+
+      // Calculate top bikes based on reviews and popularity
+      const bikeStats = packages.map(pkg => {
+        const bikeReviews = reviews.filter(review => review.packageId?._id === pkg._id);
+        const avgRating = bikeReviews.length > 0 
+          ? bikeReviews.reduce((sum, review) => sum + parseFloat(review.rating), 0) / bikeReviews.length 
+          : 0;
+        
+        return {
+          name: pkg.title,
+          sales: Math.floor(Math.random() * 50) + 10, // Mock sales data for now
+          revenue: `$${((Math.floor(Math.random() * 50) + 10) * (pkg.price || 1000)).toLocaleString()}`,
+          rating: avgRating.toFixed(1),
+          reviews: bikeReviews.length
+        };
+      });
+
+      // Sort by sales and take top 4
+      const topBikesData = bikeStats
+        .sort((a, b) => parseInt(a.sales) - parseInt(b.sales))
+        .reverse()
+        .slice(0, 4);
+
+      setTopBikes(topBikesData);
+
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      setError('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const quickActions = [
     { title: "Add New Bike", icon: <FaBicycle size={20} />, color: "bg-green-500", link: "/admin/addpackages" },
@@ -31,12 +138,48 @@ const Dashboard = () => {
     { title: "Reviews", icon: <FaStar size={20} />, color: "bg-green-800", link: "/admin/reviews" },
   ];
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
+        <div className="text-center">
+          <FaSpinner className="animate-spin text-4xl text-green-600 mx-auto mb-4" />
+          <p className="text-gray-600">Loading dashboard data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error}</p>
+          <button 
+            onClick={fetchDashboardData}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       {/* Welcome Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome back, Admin! 👋</h1>
-        <p className="text-gray-600">Here's what's happening with your bike store today.</p>
+      <div className="mb-8 flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">Welcome back, Admin! 👋</h1>
+          <p className="text-gray-600">Here's what's happening with your bike store today.</p>
+        </div>
+        <button 
+          onClick={fetchDashboardData}
+          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+        >
+          <FaSpinner className={`${loading ? 'animate-spin' : ''}`} />
+          <span>Refresh Data</span>
+        </button>
       </div>
 
       {/* Quick Actions */}
@@ -88,39 +231,46 @@ const Dashboard = () => {
               <button className="text-green-600 hover:text-green-700 text-sm font-medium">View All</button>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">CUSTOMER</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">BIKE</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">AMOUNT</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">STATUS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentOrders.map((order) => (
-                    <tr key={order.id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-4 px-4">
-                        <div>
-                          <p className="font-medium text-gray-800">{order.customer}</p>
-                          <p className="text-sm text-gray-500">{order.date}</p>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4 text-gray-800">{order.bike}</td>
-                      <td className="py-4 px-4 font-semibold text-gray-800">{order.amount}</td>
-                      <td className="py-4 px-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          order.status === "Confirmed" ? "bg-green-100 text-green-800" : 
-                          order.status === "Pending" ? "bg-yellow-100 text-yellow-800" : 
-                          "bg-red-100 text-red-800"
-                        }`}>
-                          {order.status}
-                        </span>
-                      </td>
+              {recentOrders.length > 0 ? (
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">CUSTOMER</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">BIKE</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">AMOUNT</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">STATUS</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {recentOrders.map((order) => (
+                      <tr key={order.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="py-4 px-4">
+                          <div>
+                            <p className="font-medium text-gray-800">{order.customer}</p>
+                            <p className="text-sm text-gray-500">{order.date}</p>
+                          </div>
+                        </td>
+                        <td className="py-4 px-4 text-gray-800">{order.bike}</td>
+                        <td className="py-4 px-4 font-semibold text-gray-800">{order.amount}</td>
+                        <td className="py-4 px-4">
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            order.status === "Confirmed" ? "bg-green-100 text-green-800" : 
+                            order.status === "Pending" ? "bg-yellow-100 text-yellow-800" : 
+                            "bg-red-100 text-red-800"
+                          }`}>
+                            {order.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="text-center py-8">
+                  <FaShoppingCart className="text-4xl text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500">No orders yet</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -135,22 +285,29 @@ const Dashboard = () => {
               </h3>
             </div>
             <div className="space-y-4">
-              {topBikes.map((bike, index) => (
-                <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
-                      <span className="text-green-600 font-semibold text-sm">{index + 1}</span>
+              {topBikes.length > 0 ? (
+                topBikes.map((bike, index) => (
+                  <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center">
+                      <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
+                        <span className="text-green-600 font-semibold text-sm">{index + 1}</span>
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-800">{bike.name}</p>
+                        <p className="text-sm text-gray-500">{bike.sales} sales</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-medium text-gray-800">{bike.name}</p>
-                      <p className="text-sm text-gray-500">{bike.sales} sales</p>
+                    <div className="text-right">
+                      <p className="font-semibold text-green-600">{bike.revenue}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-green-600">{bike.revenue}</p>
-                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <FaBicycle className="text-4xl text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500">No bikes available</p>
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </div>
