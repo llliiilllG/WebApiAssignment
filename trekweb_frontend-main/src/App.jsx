@@ -7,6 +7,7 @@ const Login = lazy(() => import("./components/public/Login"));
 const Register = lazy(() => import("./components/public/Register"));
 const Layout = lazy(() => import("./components/private/Layout"));
 const Checkout = lazy(() => import("./components/public/Checkout"));
+const BuyNowCheckout = lazy(() => import("./components/public/BuyNowCheckout"));
 const Faq = lazy(() => import("./components/public/Faq"));
 const Terms = lazy(() => import("./components/public/Terms"));
 const Privacy = lazy(() => import("./components/public/Privacy"));
@@ -77,6 +78,14 @@ function App() {
       element: (
         <Suspense fallback={<LoadingSpinner />}>
           <Checkout />
+        </Suspense>
+      ),
+    },
+    {
+      path: "/buy-now/:id",
+      element: (
+        <Suspense fallback={<LoadingSpinner />}>
+          <BuyNowCheckout />
         </Suspense>
       ),
     },
