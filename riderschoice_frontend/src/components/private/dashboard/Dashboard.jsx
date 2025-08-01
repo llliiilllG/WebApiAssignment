@@ -31,9 +31,18 @@ const Dashboard = () => {
       const totalBikes = packages.length;
       const totalReviews = reviews.length;
       
-      // Mock data for users and orders since they require authentication
+      // Get real booking data for orders count
+      let totalOrders = 0;
+      try {
+        const bookingsResponse = await axios.get('http://localhost:3000/api/v1/bookings');
+        totalOrders = bookingsResponse.data.length;
+      } catch (bookingError) {
+        console.error('Error fetching bookings for count:', bookingError);
+        totalOrders = Math.floor(Math.random() * 20) + 5; // Fallback to mock data
+      }
+      
+      // Mock data for users since it requires authentication
       const totalUsers = Math.floor(Math.random() * 50) + 10; // Mock user count
-      const totalOrders = Math.floor(Math.random() * 20) + 5; // Mock order count
       
       // Calculate total revenue from bike prices (mock calculation)
       const totalRevenue = packages.reduce((sum, pkg) => {
@@ -86,17 +95,38 @@ const Dashboard = () => {
         },
       ]);
 
-      // Create mock recent orders based on available bikes
-      const mockOrders = packages.slice(0, 4).map((pkg, index) => ({
-        id: index + 1,
-        customer: `Customer ${index + 1}`,
-        bike: pkg.title,
-        date: new Date(Date.now() - (index * 24 * 60 * 60 * 1000)).toLocaleDateString(),
-        status: index % 2 === 0 ? "Confirmed" : "Pending",
-        amount: `$${(pkg.price || 0).toLocaleString()}`
-      }));
-
-      setRecentOrders(mockOrders);
+      // Fetch real booking data for recent orders
+      try {
+        const bookingsResponse = await axios.get('http://localhost:3000/api/v1/bookings');
+        const allBookings = bookingsResponse.data;
+        
+        // Get recent bookings (last 4)
+        const recentBookings = allBookings
+          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+          .slice(0, 4)
+          .map(booking => ({
+            id: booking._id,
+            customer: booking.fullName,
+            bike: booking.packageId ? booking.packageId.name : 'Unknown Bike',
+            date: new Date(booking.createdAt).toLocaleDateString(),
+            status: booking.status.charAt(0).toUpperCase() + booking.status.slice(1),
+            amount: booking.packageId ? `$${(booking.packageId.price * booking.tickets).toLocaleString()}` : 'N/A'
+          }));
+        
+        setRecentOrders(recentBookings);
+      } catch (bookingError) {
+        console.error('Error fetching bookings:', bookingError);
+        // Fallback to mock data if booking fetch fails
+        const mockOrders = packages.slice(0, 4).map((pkg, index) => ({
+          id: index + 1,
+          customer: `Customer ${index + 1}`,
+          bike: pkg.title,
+          date: new Date(Date.now() - (index * 24 * 60 * 60 * 1000)).toLocaleDateString(),
+          status: index % 2 === 0 ? "Confirmed" : "Pending",
+          amount: `$${(pkg.price || 0).toLocaleString()}`
+        }));
+        setRecentOrders(mockOrders);
+      }
 
       // Calculate top bikes based on reviews and popularity
       const bikeStats = packages.map(pkg => {
@@ -233,7 +263,12 @@ const Dashboard = () => {
                 <FaClock className="mr-2 text-green-600" />
                 Recent Orders
               </h3>
-              <button className="text-green-600 hover:text-green-700 text-sm font-medium">View All</button>
+              <button 
+                onClick={() => window.location.href = '/admin/pending'}
+                className="text-green-600 hover:text-green-700 text-sm font-medium"
+              >
+                View All
+              </button>
             </div>
             <div className="overflow-x-auto">
               {recentOrders.length > 0 ? (

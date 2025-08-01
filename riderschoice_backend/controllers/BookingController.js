@@ -47,6 +47,23 @@ const cancelBooking = async (req, res) => {
   }
 };
 
+// Update booking status (approve/confirm)
+const updateBookingStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const updatedBooking = await Booking.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    ).populate("packageId");
+    
+    if (!updatedBooking) return res.status(404).json({ error: "Booking not found" });
+    res.status(200).json({ message: "Booking status updated", booking: updatedBooking });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to update booking status" });
+  }
+};
+
 // Get bookings by user ID
 const getBookingsByUserId = async (req, res) => {
   try {
@@ -63,5 +80,6 @@ module.exports = {
   getAllBookings,
   getBookingById,
   cancelBooking,
+  updateBookingStatus,
   getBookingsByUserId,
 };
